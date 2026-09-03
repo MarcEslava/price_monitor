@@ -1,0 +1,27 @@
+# secretos: NUNCA subir (.mcp.json lleva la API key de Metabase; usa .mcp.json.example)
+.mcp.json
+.env
+*.local
+
+# Metabase: plugins/driver y sample DB (no son fuente)
+metabase/plugins/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.scrapy/
+
+# datos / volúmenes (los gestiona Docker, no el repo)
+data/
+*.duckdb
+*.sqlite
+*.db.mv.db
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

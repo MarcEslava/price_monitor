@@ -1,0 +1,31 @@
+# Metabase (BI de autoservicio) sobre la misma red que ClickHouse.
+# Metabase no trae el driver de ClickHouse -> se monta el JAR en /plugins.
+# Alcanza ClickHouse por hostname `clickhouse:8123` en la red pipeline_confluent.
+# UI/embed en http://localhost:3000
+services:
+  metabase:
+    image: metabase/metabase:latest        # v0.63+: driver ClickHouse ya es core (bundled) + MCP oficial integrado
+    container_name: price_monitor_metabase
+    hostname: metabase
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - metabase_data:/metabase-data              # driver ClickHouse ya no hace falta como plugin
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db      # app DB (H2) persistida en volumen (se migra sola al subir)
+      JAVA_TIMEZONE: Europe/Madrid
+    networks:
+      - pipeline
+    deploy:
+      resources:
+        limits: { cpus: '2', memory: 2G }
+        reservations: { cpus: '0.5', memory: 1G }
+
+networks:
+  pipeline:
+    external: true
+    name: pipeline_confluent
+
+volumes:
+  metabase_data:

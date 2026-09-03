@@ -1,0 +1,13 @@
+# Keep the build context small and avoid baking local state into the image.
+.git
+.gitignore
+__pycache__/
+*.pyc
+*.egg-info/
+.scrapy/
+build/
+dist/
+# Local run artifacts from running scrapy outside the container
+prices.db
+price_alerts.csv
+*.jsonl

@@ -1,0 +1,102 @@
+# price_monitor as its own Scrapyd container.
+#
+# Runs a long-lived Scrapyd daemon exposing the Scrapy project over HTTP so the
+# Airflow pipeline (C:\dev\pipeline) can trigger crawls and pull scraped items.
+#
+# It attaches to the network created by the pipeline's docker-compose so Airflow
+# can reach this service by name at http://scrapyd:6800. Docker Compose names a
+# network "<project>_<network>", and the pipeline stack defines a network called
+# "confluent" under the default project name "pipeline" -> "pipeline_confluent".
+# If your pipeline stack runs under a different project name, override the
+# external network name below (or via `docker compose -p`).
+services:
+  scrapyd:
+    build: .
+    image: price_monitor-scrapyd
+    container_name: price_monitor_scrapyd
+    hostname: scrapyd
+    restart: unless-stopped
+    ports:
+      - "6800:6800"          # expose the UI/API on the host too (optional)
+    volumes:
+      - scrapyd_eggs:/var/lib/scrapyd/eggs
+      - scrapyd_dbs:/var/lib/scrapyd/dbs
+      - scrapyd_logs:/var/lib/scrapyd/logs
+      - scrapyd_items:/var/lib/scrapyd/items
+    networks:
+      - pipeline
+    deploy:
+      resources:
+        limits: { cpus: '2', memory: 2G }      # headless chromium is memory-hungry
+        reservations: { cpus: '0.5', memory: 512M }
+
+  # Web dashboard for scrapyd. Gerapy (Django + Vue) talks to scrapyd over its
+  # JSON API, so it works with current Scrapyd (unlike ScrapydWeb, which screen-
+  # scrapes Scrapyd's HTML jobs page and breaks on Scrapyd 1.6). Uses the
+  # author's official image, which auto-runs init/migrate/initadmin/runserver.
+  # Browse at http://localhost:8000 — default login admin / admin.
+  #
+  # Pinned by digest for reproducibility (this is `germey/gerapy:latest` as of
+  # 2026-07: gerapy 0.9.13). To update: docker pull germey/gerapy:latest and
+  # replace the digest below.
+  gerapy:
+    image: germey/gerapy@sha256:ed087fccf625814cc26aa6fac1e6b0523f233d1ea920afa7065ba62f1f6f4eaf
+    container_name: price_monitor_gerapy
+    hostname: gerapy
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    depends_on:
+      - scrapyd
+    volumes:
+      - gerapy_data:/home/gerapy
+    networks:
+      - pipeline
+    deploy:
+      resources:
+        limits: { cpus: '1', memory: 512M }
+        reservations: { cpus: '0.1', memory: 128M }
+
+  # Analytical store for price history (columnar OLAP). Interim home until
+  # Snowflake; Airflow's `load` task writes here, and BI tools (Metabase /
+  # PowerBI via ODBC) read from it. HTTP on 8123, native on 9000.
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8
+    container_name: price_monitor_clickhouse
+    hostname: clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: price_monitor
+      CLICKHOUSE_USER: price_monitor
+      # CHANGE THIS. Kept simple for the interim; the DAG reads it from the
+      # `clickhouse_password` Airflow Variable (default matches this).
+      CLICKHOUSE_PASSWORD: changeme_pm
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - "8123:8123"   # HTTP (Metabase driver, PowerBI, curl, DAG load)
+      - "9000:9000"   # native TCP client
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/init:/docker-entrypoint-initdb.d:ro
+    ulimits:
+      nofile: { soft: 262144, hard: 262144 }
+    cap_add: [SYS_NICE, IPC_LOCK]
+    networks:
+      - pipeline
+    deploy:
+      resources:
+        limits: { cpus: '2', memory: 2G }
+        reservations: { cpus: '0.25', memory: 512M }
+
+networks:
+  pipeline:
+    external: true
+    name: pipeline_confluent
+
+volumes:
+  scrapyd_eggs:
+  scrapyd_dbs:
+  scrapyd_logs:
+  scrapyd_items:
+  gerapy_data:
+  clickhouse_data:

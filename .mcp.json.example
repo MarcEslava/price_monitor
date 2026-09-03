@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "metabase": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@easecloudio/mcp-metabase-server"],
+      "env": {
+        "METABASE_URL": "http://localhost:3000",
+        "METABASE_API_KEY": "REEMPLAZA_CON_TU_API_KEY_DE_METABASE"
+      }
+    }
+  }
+}

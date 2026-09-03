@@ -1,0 +1,7 @@
+scrapy>=2.11
+
+# Serving the project as a container: Scrapyd is the daemon that runs the
+# spiders and exposes them over HTTP; scrapyd-client provides `scrapyd-deploy`,
+# used by docker-entrypoint.sh to register the project egg on startup.
+scrapyd>=1.4
+scrapyd-client>=1.2
